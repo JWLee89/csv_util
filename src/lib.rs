@@ -1,5 +1,6 @@
 
 pub mod csv {
+    use std::fmt;
     use std::fs::File;
     use std::io::{BufRead, BufReader, Read, Write};
     use std::path::Path;
@@ -15,18 +16,26 @@ pub mod csv {
     /// Each vector of strings represents a row in the CSV file.
     /// If the number of columns in a row differs,
     /// we will raise an error to notify users that the CSV file is malformed.
+    #[derive(Debug)]
     struct FileInfo {
-        pub path: Option<String>,
-        pub extension: Option<String>,
-        pub delimiter: Option<char>,
+        path: Option<String>,
+        // Default value should be a ",".
+        // Change to \t for tab delimited files.
+        delimiter: Option<char>,
     }
 
     impl FileInfo {
-        fn new(path: Option<String>, extension: Option<String>, delimiter: Option<char>) -> Self {
-            Self { path, extension, delimiter }
+        fn new(path: Option<String>, delimiter: Option<char>) -> Self {
+            Self { path, delimiter }
         }
         fn default() -> Self {
-            Self { path: None, extension: None, delimiter: Some(',') }
+            Self { path: None, delimiter: Some(',') }
+        }
+    }
+
+    impl fmt::Display for FileInfo {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Path: {}, Delimiter: {:?}", self.path.as_ref().unwrap(), self.delimiter)
         }
     }
 
@@ -38,25 +47,31 @@ pub mod csv {
     impl BasicReader {
         pub fn new(path: String) -> Self {
             let file_info = Self::get_file_info(&path);
+            let path_obj = Path::new(&path);
+            if !path_obj.exists() {
+                panic!("File: \"{path}\" does not exist. \"{file_info}\"", path=path, file_info=file_info);
+            }
+            match path_obj.extension() {
+                Some(ext) => ext,
+                None => panic!("File: \"{path}\" does not have an extension. \"{file_info}\"", path=path, file_info=file_info),
+            };
             return Self { file_info: Some(file_info) };
         }
         fn get_file_info(path: &str) -> FileInfo {
             let path = Path::new(path);
             FileInfo {
                 path: Some(path.file_name().map(|name| name.to_str().unwrap().to_string()).unwrap_or_default()),
-                extension: Some(path.extension().map(|ext| ext.to_str().unwrap().to_string()).unwrap_or_default()),
                 delimiter: Some(','),
             }
         }
-        /// Check whether the given file exists
-        fn exists(&self) -> bool {
-            let binding = self.file_info.as_ref().unwrap().path.as_ref().unwrap();
-            let path = Path::new(&binding);
-            path.exists()
+        fn is_valid_csv(&self) -> bool {
+            todo!()
         }
     }
 
     impl Reader for BasicReader {
+        /// Reads a CSV file and returns a vector of vectors of strings.
+        /// This will open the file, read each line, and split each line by a comma.
         fn read(&self) -> Vec<Vec<String>> {
             let mut output = Vec::new();
             let file = File::open(&self.file_info.as_ref().unwrap().path.as_ref().unwrap()).unwrap();
